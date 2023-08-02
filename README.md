@@ -150,3 +150,62 @@ cd sampler && python setup.py install && cd ..
 Running demo.py, train_stereo.py or evaluate.py with `--corr_implementation reg_cuda` together with `--mixed_precision` will speed up the model without impacting performance.
 
 To significantly decrease memory consumption on high resolution images, use `--corr_implementation alt`. This implementation is slower than the default, however.
+
+# 笔记
+## 安装
+### 环境配置
+```bash
+conda create -n raftstereo python=3.7
+conda activate raftstereo
+# 安装依赖项，参照`RAFT-Stereo/environment_cuda11.yaml`
+pip3 install matplotlib tensorboard tensorboardX scipy opencv-python tqdm opt_einsum imageio scikit-image
+conda install p7zip
+# 安装pytorch相关
+conda install pytorch==1.12.1 torchvision==0.13.1 cudatoolkit=11.3 -c pytorch
+```
+
+### 数据集下载与整理
+TODO：还未完成
+```Shell
+# sceneflow
+/data/net/dl_data/ProjectDatasets_bkx/sceneflow
+# 需要根据项目需要，将sceneflow数据集排布进行修改
+├── datasets
+    ├── FlyingThings3D
+        ├── frames_cleanpass
+        ├── frames_finalpass
+        ├── disparity
+    ├── Monkaa
+        ├── frames_cleanpass
+        ├── frames_finalpass
+        ├── disparity
+    ├── Driving
+        ├── frames_cleanpass
+        ├── frames_finalpass
+        ├── disparity
+    ├── KITTI
+        ├── testing
+        ├── training
+        ├── devkit
+    ├── Middlebury
+        ├── MiddEval3
+    ├── ETH3D
+        ├── two_view_testing
+```
+
+### 预训练模型下载
+```bash
+bash download_models.sh
+```
+
+### 图像测试
+```bash
+# 单图测试
+python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementation alt --mixed_precision -l=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/left/0006.png -r=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/right/0006.png
+效果真不错，模型倒是也不小
+# 多图测试，注意保存图像命名为left.png，会覆盖，修改代码使用时间戳命名
+python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementation alt --mixed_precision -l=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/left/*.png -r=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/right/*.png
+
+```
+
+### 
