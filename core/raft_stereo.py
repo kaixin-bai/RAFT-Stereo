@@ -24,7 +24,7 @@ class RAFTStereo(nn.Module):
         super().__init__()
         self.args = args
         
-        context_dims = args.hidden_dims
+        context_dims = args.hidden_dims  # [128,128,128]
 
         self.cnet = MultiBasicEncoder(output_dim=[args.hidden_dims, context_dims], norm_fn=args.context_norm, downsample=args.n_downsample)
         self.update_block = BasicMultiUpdateBlock(self.args, hidden_dims=args.hidden_dims)
@@ -70,7 +70,7 @@ class RAFTStereo(nn.Module):
     def forward(self, image1, image2, iters=12, flow_init=None, test_mode=False):
         """ Estimate optical flow between pair of frames """
 
-        image1 = (2 * (image1 / 255.0) - 1.0).contiguous()
+        image1 = (2 * (image1 / 255.0) - 1.0).contiguous()  # [1,3,544,960]
         image2 = (2 * (image2 / 255.0) - 1.0).contiguous()
 
         # run the context network
@@ -79,13 +79,18 @@ class RAFTStereo(nn.Module):
                 *cnet_list, x = self.cnet(torch.cat((image1, image2), dim=0), dual_inp=True, num_layers=self.args.n_gru_layers)
                 fmap1, fmap2 = self.conv2(x).split(dim=0, split_size=x.shape[0]//2)
             else:
-                cnet_list = self.cnet(image1, num_layers=self.args.n_gru_layers)
-                fmap1, fmap2 = self.fnet([image1, image2])
-            net_list = [torch.tanh(x[0]) for x in cnet_list]
-            inp_list = [torch.relu(x[1]) for x in cnet_list]
+                cnet_list = self.cnet(image1, num_layers=self.args.n_gru_layers) # tuple3,其中每个为list2,其中为[1,128,136,240][1,128,68,120][1,128,34,60],128维H/4,H/8,H/16的特征图
+                fmap1, fmap2 = self.fnet([image1, image2]) # [1,256,136,240]
+            net_list = [torch.tanh(x[0]) for x in cnet_list] # tanh将输入的数值压缩到-1和1之间，使得神经网络可以逼近复杂函数，list3:[1,128,136,240],[1,128,68,120],[1,128,34,60]
+            inp_list = [torch.relu(x[1]) for x in cnet_list] # relu对负数的处理方式是直接归零，解决梯度消失的问题，list3:[1,128,136,240],[1,128,68,120],[1,128,34,60]
 
-            # Rather than running the GRU's conv layers on the context features multiple times, we do it once at the beginning 
-            inp_list = [list(conv(i).split(split_size=conv.out_channels//3, dim=1)) for i,conv in zip(inp_list, self.context_zqr_convs)]
+            # 这段代码主要是在对输入列表inp_list进行一次卷积操作，然后将得到的结果进行切割。这是对GRU（门控循环单元）网络的优化，因为在标准的
+            # GRU网络中，需要对上下文特征进行多次的卷积操作，这里提前一次性完成，提高了效率。
+            # Rather than running the GRU's conv layers on the context features multiple times, we do it once at the beginning
+            # 使用zip函数同时遍历inp_list和self.context_zqr_convs两个列表。在每次循环中，i是inp_list中的一个元素，conv是self.context_zqr_convs中的一个卷积层。
+            # conv(i): 对inp_list中的元素i进行卷积操作。
+            # .split(split_size=conv.out_channels//3, dim=1): 这个函数将卷积后的结果沿着通道维度（dim=1）进行切割，切割的大小是卷积层输出通道数的三分之一（conv.out_channels//3）。切割的结果是一个列表，其中每个元素都是切割后的一部分。
+            inp_list = [list(conv(i).split(split_size=conv.out_channels//3, dim=1)) for i,conv in zip(inp_list, self.context_zqr_convs)] # list:3, 每个list里有3个tensor，list中的三个list的tensor分别为[1,128,136,240],[1,128,68,120],[1,128,34,60]
 
         if self.args.corr_implementation == "reg": # Default
             corr_block = CorrBlock1D
@@ -97,18 +102,18 @@ class RAFTStereo(nn.Module):
             corr_block = CorrBlockFast1D
         elif self.args.corr_implementation == "alt_cuda": # Faster version of alt
             corr_block = AlternateCorrBlock
-        corr_fn = corr_block(fmap1, fmap2, radius=self.args.corr_radius, num_levels=self.args.corr_levels)
+        corr_fn = corr_block(fmap1, fmap2, radius=self.args.corr_radius, num_levels=self.args.corr_levels)  # fmap:[1,256,136,240];
 
-        coords0, coords1 = self.initialize_flow(net_list[0])
+        coords0, coords1 = self.initialize_flow(net_list[0])  # coords:[1,2,136,240]
 
         if flow_init is not None:
             coords1 = coords1 + flow_init
 
         flow_predictions = []
         for itr in range(iters):
-            coords1 = coords1.detach()
-            corr = corr_fn(coords1) # index correlation volume
-            flow = coords1 - coords0
+            coords1 = coords1.detach()  # [1,2,136,240]
+            corr = corr_fn(coords1) # index correlation volume [1,36,136,240]
+            flow = coords1 - coords0 # [1,2,136,240]
             with autocast(enabled=self.args.mixed_precision):
                 if self.args.n_gru_layers == 3 and self.args.slow_fast_gru: # Update low-res GRU
                     net_list = self.update_block(net_list, inp_list, iter32=True, iter16=False, iter08=False, update=False)
@@ -120,7 +125,7 @@ class RAFTStereo(nn.Module):
             delta_flow[:,1] = 0.0
 
             # F(t+1) = F(t) + \Delta(t)
-            coords1 = coords1 + delta_flow
+            coords1 = coords1 + delta_flow # [1,2,136,240]
 
             # We do not need to upsample or output intermediate results in test_mode
             if test_mode and itr < iters-1:

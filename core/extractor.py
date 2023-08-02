@@ -200,7 +200,7 @@ class MultiBasicEncoder(nn.Module):
     def __init__(self, output_dim=[128], norm_fn='batch', dropout=0.0, downsample=3):
         super(MultiBasicEncoder, self).__init__()
         self.norm_fn = norm_fn
-        self.downsample = downsample
+        self.downsample = downsample  # 2
 
         if self.norm_fn == 'group':
             self.norm1 = nn.GroupNorm(num_groups=8, num_channels=64)

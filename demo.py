@@ -40,10 +40,12 @@ def demo(args):
         print(f"Found {len(left_images)} images. Saving files to {output_directory}/")
 
         for (imfile1, imfile2) in tqdm(list(zip(left_images, right_images))):
+            # 推理时image1[1,3,540,960]
             image1 = load_image(imfile1)
             image2 = load_image(imfile2)
 
             padder = InputPadder(image1.shape, divis_by=32)
+            # image通过padder之后为[1,3,544,960],是为了让图像可以被32整除
             image1, image2 = padder.pad(image1, image2)
 
             _, flow_up = model(image1, image2, iters=args.valid_iters, test_mode=True)

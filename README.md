@@ -205,7 +205,10 @@ python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementa
 效果真不错，模型倒是也不小
 # 多图测试，注意保存图像命名为left.png，会覆盖，修改代码使用时间戳命名
 python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementation alt --mixed_precision -l=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/left/*.png -r=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/right/*.png
-
 ```
 
-### 
+### 代码阅读
+注意代码阅读模型推理时使用的案例图片为：
+```bash
+python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementation alt --mixed_precision -l=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/left/0006.png -r=/data/net/dl_data/ProjectDatasets_bkx/sceneflow/frames_cleanpass/TEST/A/0000/right/0006.png
+```
