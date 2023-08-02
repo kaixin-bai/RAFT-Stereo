@@ -12,6 +12,9 @@ from utils.utils import InputPadder
 from PIL import Image
 from matplotlib import pyplot as plt
 
+import time
+from datetime import datetime
+
 
 DEVICE = 'cuda'
 
@@ -47,9 +50,11 @@ def demo(args):
             flow_up = padder.unpad(flow_up).squeeze()
 
             file_stem = imfile1.split('/')[-2]
+            # 获取当前时间戳（秒）
+            timestamp = time.time()
             if args.save_numpy:
-                np.save(output_directory / f"{file_stem}.npy", flow_up.cpu().numpy().squeeze())
-            plt.imsave(output_directory / f"{file_stem}.png", -flow_up.cpu().numpy().squeeze(), cmap='jet')
+                np.save(output_directory / f"{file_stem+str(timestamp)}.npy", flow_up.cpu().numpy().squeeze())
+            plt.imsave(output_directory / f"{file_stem+str(timestamp)}.png", -flow_up.cpu().numpy().squeeze(), cmap='jet')
 
 
 if __name__ == '__main__':
