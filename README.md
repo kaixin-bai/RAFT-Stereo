@@ -214,7 +214,8 @@ python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementa
 ```
 
 ### 可参考帖子
-[知乎-RAFT 光流估计方法与 Done is better than perfect 理念 | ECCV2020](https://zhuanlan.zhihu.com/p/363265976)
+[56 门控循环单元（GRU）【动手学深度学习v2】](https://www.bilibili.com/video/BV1mf4y157N2/?vd_source=c5da248dd1743b6737eb841f3763b922)  \
+[知乎-RAFT 光流估计方法与 Done is better than perfect 理念 | ECCV2020](https://zhuanlan.zhihu.com/p/363265976)  \
 大概流程：  \
 raft是做光流估计的任务，框架上首先通过CNN提取出两帧图像的特征图，然后用这两个特征图去构建一个4D Correlation Volumes。  \
 进一步来说就是第一张图的特征图变成了HW*N，第二个图的特征图变成N*HW的矩阵。然后二者做矩阵乘法。  \
@@ -225,3 +226,4 @@ L为look-up操作。【？】  \
 详细流程：  \
 先初始化光流结果为0.  \
 对第一帧用context encoder提取特征图，用feature encoder提取第一帧和第二帧的信息，并得到4D Correlation Volumes。  \
+然后就GRU循环。

@@ -113,7 +113,10 @@ class BasicMultiUpdateBlock(nn.Module):
             nn.Conv2d(256, (factor**2)*9, 1, padding=0))
 
     def forward(self, net, inp, corr=None, flow=None, iter08=True, iter16=True, iter32=True, update=True):
-
+        """
+        net: {list:3} 每个list里面是1个tensor [1,128,136,240],[1,128,68,120],[1,128,34,60]
+        inp: {list:3} 每个list里面是3个shape一样的tensor [1,128,136,240],[1,128,68,120],[1,128,34,60]
+        """
         if iter32:
             net[2] = self.gru32(net[2], *(inp[2]), pool2x(net[1]))
         if iter16:

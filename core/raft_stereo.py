@@ -114,7 +114,8 @@ class RAFTStereo(nn.Module):
             # 外部列表的长度与n_gru_layers一致，每个内部列表都包含三个部分，代表GRU的三个门的输出。
             # 对输入特征图进行卷积操作，并将结果切分为三个部分，以供GRU的三个门使用。
             inp_list = [list(conv(i).split(split_size=conv.out_channels // 3, dim=1))
-                        for i, conv in zip(inp_list, self.context_zqr_convs)]  # list:3, 每个list里有3个tensor，list中的三个list的tensor分别为[1,128,136,240],[1,128,68,120],[1,128,34,60]
+                        for i, conv in zip(inp_list,
+                                           self.context_zqr_convs)]  # list:3, 每个list里有3个tensor，list中的三个list的tensor分别为[1,128,136,240],[1,128,68,120],[1,128,34,60]
 
         if self.args.corr_implementation == "reg":  # Default
             corr_block = CorrBlock1D
@@ -172,7 +173,8 @@ class RAFTStereo(nn.Module):
                 if self.args.n_gru_layers >= 2 and self.args.slow_fast_gru:  # Update low-res GRU and mid-res GRU
                     net_list = self.update_block(net_list, inp_list, iter32=self.args.n_gru_layers == 3, iter16=True,
                                                  iter08=False, update=False)
-                net_list, up_mask, delta_flow = self.update_block(net_list, inp_list, corr, flow,
+                # n_gru_layers = 3
+                net_list, up_mask, delta_flow = self.update_block(net=net_list, inp=inp_list, corr=corr, flow=flow,
                                                                   iter32=self.args.n_gru_layers == 3,
                                                                   iter16=self.args.n_gru_layers >= 2)
 
