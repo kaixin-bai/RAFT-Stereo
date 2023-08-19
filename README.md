@@ -220,8 +220,7 @@ python demo.py --restore_ckpt models/raftstereo-middlebury.pth --corr_implementa
 raft是做光流估计的任务，框架上首先通过CNN提取出两帧图像的特征图，然后用这两个特征图去构建一个4D Correlation Volumes。  \
 进一步来说就是第一张图的特征图变成了HW*N，第二个图的特征图变成N*HW的矩阵。然后二者做矩阵乘法。  \
 4D Correlation Volumes的目的是得到两个特征图有个逐像素的相关性计算，比如我们两个图都是H*W大小的，那么逐像素的这个volume就是(H*W)*(H*W).
-L为look-up操作。【？】  \
-循环为GRU（一种循环网络）【？】。
+L为look-up操作。【？】 
 ---
 详细流程：  \
 先初始化光流结果为0.  \
