@@ -221,7 +221,7 @@ raft是做光流估计的任务，框架上首先通过CNN提取出两帧图像�
 进一步来说就是第一张图的特征图变成了HW*N，第二个图的特征图变成N*HW的矩阵。然后二者做矩阵乘法。  \
 4D Correlation Volumes的目的是得到两个特征图有个逐像素的相关性计算，比如我们两个图都是H*W大小的，那么逐像素的这个volume就是(H*W)*(H*W).
 L为look-up操作。【？】 
----
+
 详细流程：  \
 先初始化光流结果为0.  \
 对第一帧用context encoder提取特征图，用feature encoder提取第一帧和第二帧的信息，并得到4D Correlation Volumes。  \
