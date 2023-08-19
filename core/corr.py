@@ -62,7 +62,15 @@ class CorrBlockFast1D:
 
 
 class PytorchAlternateCorrBlock1D:
+    """
+    这段代码定义了一个名为PytorchAlternateCorrBlock1D的类，该类用于计算两个输入特征图之间的1D卷积相关性。它的主要目的是构建一个金字塔结构，将
+    两个输入特征图通过空间坐标的变换进行逐层卷积相关计算，然后将计算结果沿着深度维度拼接在一起返回。
+    """
     def __init__(self, fmap1, fmap2, num_levels=4, radius=4):
+        """
+        初始化实例。其中，fmap1和fmap2分别是两个输入特征图，num_levels表示金字塔的层数，默认为4，radius表示每一层金字塔对应的空间坐标变换范
+        围，默认为4。
+        """
         self.num_levels = num_levels
         self.radius = radius
         self.corr_pyramid = []
@@ -70,6 +78,11 @@ class PytorchAlternateCorrBlock1D:
         self.fmap2 = fmap2
 
     def corr(self, fmap1, fmap2, coords):
+        """
+        计算输入特征图fmap1和fmap2之间的卷积相关性。coords是一个包含空间坐标的张量，表示需要在fmap2上采样的位置。首先，将coords的坐标映射到
+        范围[-1, 1]内，然后使用F.grid_sample函数对fmap2进行采样，得到采样后的特征图fmapw_mini。接下来，对fmapw_mini和fmap1进行逐通道的
+        点乘并求和，得到卷积相关性结果。最后，除以特征图通道数D的平方根进行归一化。
+        """
         B, D, H, W = fmap2.shape
         # map grid coordinates to [-1,1]
         xgrid, ygrid = coords.split([1,1], dim=-1)
@@ -87,6 +100,11 @@ class PytorchAlternateCorrBlock1D:
         return corr / torch.sqrt(torch.tensor(D).float())
 
     def __call__(self, coords):
+        """
+        用于计算两个输入特征图之间的1D卷积相关性金字塔。coords是一个包含空间坐标的张量。首先，对coords进行一系列的维度变换和处理，得到用于计算
+        1D卷积相关性的坐标coords_lvl。然后，通过循环计算金字塔的每一层卷积相关性，将结果存储在out_pyramid列表中。每一层金字塔都会对fmap2进
+        行平均池化，以便下一层计算。最后，将所有层的卷积相关性结果沿深度维度进行拼接，并按照指定的维度顺序进行变换，最终返回1D卷积相关性金字塔结果。
+        """
         r = self.radius
         coords = coords.permute(0, 2, 3, 1)
         batch, h1, w1, _ = coords.shape

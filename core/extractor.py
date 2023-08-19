@@ -176,17 +176,17 @@ class BasicEncoder(nn.Module):
         is_list = isinstance(x, tuple) or isinstance(x, list)
         if is_list:
             batch_dim = x[0].shape[0]
-            x = torch.cat(x, dim=0)
+            x = torch.cat(x, dim=0)  # [2,3,544,960]
 
-        x = self.conv1(x)
+        x = self.conv1(x) # [2,64,544,690]
         x = self.norm1(x)
         x = self.relu1(x)
 
         x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
+        x = self.layer2(x)  # [2,96,272,480]
+        x = self.layer3(x)  # [2,128,136,240]
 
-        x = self.conv2(x)
+        x = self.conv2(x)  # [2,256,136,240]
 
         if self.training and self.dropout is not None:
             x = self.dropout(x)
@@ -225,12 +225,13 @@ class MultiBasicEncoder(nn.Module):
         self.layer5 = self._make_layer(128, stride=2)
 
         output_list = []
-        for dim in output_dim:
+        for dim in output_dim:  # dim:[128,128,128]  output_dim:[[128,128,128],[128,128,128]]
             conv_out = nn.Sequential(
                 ResidualBlock(128, 128, self.norm_fn, stride=1),
                 nn.Conv2d(128, dim[2], 3, padding=1))
-            output_list.append(conv_out)
+            output_list.append(conv_out)  # output_list是两个结构一样的小网络
 
+        # 通过这里，最后会变成两个分支，原因是后面我们用了两个不同的激活函数tanh和relu，这里分成两份是为后面激活函数准备的
         self.outputs08 = nn.ModuleList(output_list)
 
         output_list = []
@@ -273,18 +274,18 @@ class MultiBasicEncoder(nn.Module):
 
     def forward(self, x, dual_inp=False, num_layers=3):
 
-        x = self.conv1(x)
+        x = self.conv1(x)  # x从[1,3,544,960] ==> [1,64,544,960]
         x = self.norm1(x)
         x = self.relu1(x)
 
         x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        if dual_inp:
+        x = self.layer2(x) # x从[1,64,544,960] ==> [1,96,272,480]
+        x = self.layer3(x)  # x从[1,96,272,480] ==> [1,128,136,240]
+        if dual_inp:  # False
             v = x
             x = x[:(x.shape[0]//2)]
 
-        outputs08 = [f(x) for f in self.outputs08]
+        outputs08 = [f(x) for f in self.outputs08]  # self.outputs08中有两个CNN实例，会分别对x做一次处理，出来的是两个tensor的list，每个都是[1,128,136,240]
         if num_layers == 1:
             return (outputs08, v) if dual_inp else (outputs08,)
 
