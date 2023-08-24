@@ -174,6 +174,10 @@ class RAFTStereo(nn.Module):
                     net_list = self.update_block(net_list, inp_list, iter32=self.args.n_gru_layers == 3, iter16=True,
                                                  iter08=False, update=False)
                 # n_gru_layers = 3
+                # net_list:{list3}        [1,128,136,240][1,128,68,120][1,128,34,60]
+                # inp_list:{list3}{list3} [1,128,136,240][1,128,68,120][1,128,34,60]
+                # corr: [1,36,136,240]
+                # flow: [1,2,136,240]
                 net_list, up_mask, delta_flow = self.update_block(net=net_list, inp=inp_list, corr=corr, flow=flow,
                                                                   iter32=self.args.n_gru_layers == 3,
                                                                   iter16=self.args.n_gru_layers >= 2)

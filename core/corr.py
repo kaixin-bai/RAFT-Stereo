@@ -85,17 +85,17 @@ class PytorchAlternateCorrBlock1D:
         """
         B, D, H, W = fmap2.shape
         # map grid coordinates to [-1,1]
-        xgrid, ygrid = coords.split([1,1], dim=-1)
+        xgrid, ygrid = coords.split([1,1], dim=-1)  # [1,136,240,9,1]
         xgrid = 2*xgrid/(W-1) - 1
         ygrid = 2*ygrid/(H-1) - 1
 
-        grid = torch.cat([xgrid, ygrid], dim=-1)
+        grid = torch.cat([xgrid, ygrid], dim=-1)  # [1,136,240,9,2]
         output_corr = []
         for grid_slice in grid.unbind(3):
             fmapw_mini = F.grid_sample(fmap2, grid_slice, align_corners=True)
             corr = torch.sum(fmapw_mini * fmap1, dim=1)
             output_corr.append(corr)
-        corr = torch.stack(output_corr, dim=1).permute(0,2,3,1)
+        corr = torch.stack(output_corr, dim=1).permute(0,2,3,1)  # [1,136,240,9,2]
 
         return corr / torch.sqrt(torch.tensor(D).float())
 
@@ -106,7 +106,7 @@ class PytorchAlternateCorrBlock1D:
         行平均池化，以便下一层计算。最后，将所有层的卷积相关性结果沿深度维度进行拼接，并按照指定的维度顺序进行变换，最终返回1D卷积相关性金字塔结果。
         """
         r = self.radius
-        coords = coords.permute(0, 2, 3, 1)
+        coords = coords.permute(0, 2, 3, 1)  # shape from [1,2,136,240] to [1,136,240,2]
         batch, h1, w1, _ = coords.shape
         fmap1 = self.fmap1
         fmap2 = self.fmap2
@@ -114,12 +114,12 @@ class PytorchAlternateCorrBlock1D:
         for i in range(self.num_levels):
             dx = torch.zeros(1)
             dy = torch.linspace(-r, r, 2*r+1)
-            delta = torch.stack(torch.meshgrid(dy, dx), axis=-1).to(coords.device)
-            centroid_lvl = coords.reshape(batch, h1, w1, 1, 2).clone()
-            centroid_lvl[...,0] = centroid_lvl[...,0] / 2**i
-            coords_lvl = centroid_lvl + delta.view(-1, 2)
-            corr = self.corr(fmap1, fmap2, coords_lvl)
-            fmap2 = F.avg_pool2d(fmap2, [1, 2], stride=[1, 2])
+            delta = torch.stack(torch.meshgrid(dy, dx), axis=-1).to(coords.device)  # [9,1,2]
+            centroid_lvl = coords.reshape(batch, h1, w1, 1, 2).clone()  # [1,136,240,1,2]
+            centroid_lvl[...,0] = centroid_lvl[...,0] / 2**i  # [1,136,240,1,2]
+            coords_lvl = centroid_lvl + delta.view(-1, 2)  # [1,136,240,9,2]
+            corr = self.corr(fmap1, fmap2, coords_lvl)  # [1,136,240,9,2]
+            fmap2 = F.avg_pool2d(fmap2, [1, 2], stride=[1, 2])  # [1,256,136,120]
             out_pyramid.append(corr)
         out = torch.cat(out_pyramid, dim=-1)
         return out.permute(0, 3, 1, 2).contiguous().float()
