@@ -30,6 +30,14 @@ class RAFTStereo(nn.Module):
         # cnet是context encoder
         self.cnet = MultiBasicEncoder(output_dim=[args.hidden_dims, context_dims], norm_fn=args.context_norm,
                                       downsample=args.n_downsample)  # n_downsample=2； context_norm=‘batch’； context_dims：[128,128,128];hidden_dims:[128,128,128]
+
+        """
+        BasicMultiUpdateBlock是原文中更新GRU的部分
+        输入和输出为：
+        net_list, up_mask, delta_flow = self.update_block(net=net_list, inp=inp_list, corr=corr, flow=flow,
+                                                          iter32=self.args.n_gru_layers == 3,
+                                                          iter16=self.args.n_gru_layers >= 2)
+        """
         self.update_block = BasicMultiUpdateBlock(self.args, hidden_dims=args.hidden_dims)
 
         # 列表推导式 [nn.Conv2d(...)... for i in range(self.args.n_gru_layers)] 是用于创建卷积层的。这些卷积层的数量与n_gru_layers一致。
@@ -127,7 +135,7 @@ class RAFTStereo(nn.Module):
             corr_block = CorrBlockFast1D
         elif self.args.corr_implementation == "alt_cuda":  # Faster version of alt
             corr_block = AlternateCorrBlock
-        corr_fn = corr_block(fmap1, fmap2, radius=self.args.corr_radius,
+        corr_fn = corr_block(fmap1, fmap2, radius=self.args.corr_radius,  # self.args.corr_radius:4  self.args.corr_levels:4
                              num_levels=self.args.corr_levels)  # fmap:[1,256,136,240];
 
         # coords:[1,2,136,240]，net_list[0]是最大的特征图list2，都是[1,128,136,240]
@@ -152,7 +160,7 @@ class RAFTStereo(nn.Module):
             # plt.imshow(np.array(coords1.cpu().numpy())[0][1])
             # plt.show()
 
-            corr = corr_fn(coords1)  # index correlation volume [1,36,136,240]
+            corr = corr_fn(coords1)  # index correlation volume [1,36,136,240]  coords1:[1,2,136,240]
 
             flow = coords1 - coords0  # [1,2,136,240]  flow的第二通道是全0
 

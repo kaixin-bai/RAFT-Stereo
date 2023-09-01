@@ -125,7 +125,7 @@ class BasicMultiUpdateBlock(nn.Module):
             else:
                 net[1] = self.gru16(net[1], *(inp[1]), pool2x(net[0]))
         if iter08:
-            motion_features = self.encoder(flow, corr)
+            motion_features = self.encoder(flow, corr)  # corr在这里使用到了
             if self.args.n_gru_layers > 1:
                 net[0] = self.gru08(net[0], *(inp[0]), motion_features, interp(net[1], net[0]))
             else:

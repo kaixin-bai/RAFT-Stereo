@@ -79,6 +79,7 @@ class PytorchAlternateCorrBlock1D:
 
     def corr(self, fmap1, fmap2, coords):
         """
+        todo: 修改这个函数，使得corr的计算更高效
         计算输入特征图fmap1和fmap2之间的卷积相关性。coords是一个包含空间坐标的张量，表示需要在fmap2上采样的位置。首先，将coords的坐标映射到
         范围[-1, 1]内，然后使用F.grid_sample函数对fmap2进行采样，得到采样后的特征图fmapw_mini。接下来，对fmapw_mini和fmap1进行逐通道的
         点乘并求和，得到卷积相关性结果。最后，除以特征图通道数D的平方根进行归一化。
@@ -91,11 +92,11 @@ class PytorchAlternateCorrBlock1D:
 
         grid = torch.cat([xgrid, ygrid], dim=-1)  # [1,136,240,9,2]
         output_corr = []
-        for grid_slice in grid.unbind(3):
-            fmapw_mini = F.grid_sample(fmap2, grid_slice, align_corners=True)
-            corr = torch.sum(fmapw_mini * fmap1, dim=1)
+        for grid_slice in grid.unbind(3):  # grid_slice:[1,136,240,2]
+            fmapw_mini = F.grid_sample(fmap2, grid_slice, align_corners=True)  # fmapw_mini:[1,256,136,240]
+            corr = torch.sum(fmapw_mini * fmap1, dim=1)  # corr:[1,136,240]
             output_corr.append(corr)
-        corr = torch.stack(output_corr, dim=1).permute(0,2,3,1)  # [1,136,240,9,2]
+        corr = torch.stack(output_corr, dim=1).permute(0,2,3,1)  # [1,136,240,9]
 
         return corr / torch.sqrt(torch.tensor(D).float())
 
@@ -107,21 +108,39 @@ class PytorchAlternateCorrBlock1D:
         """
         r = self.radius
         coords = coords.permute(0, 2, 3, 1)  # shape from [1,2,136,240] to [1,136,240,2]
-        batch, h1, w1, _ = coords.shape
-        fmap1 = self.fmap1
+        batch, h1, w1, _ = coords.shape  # _:2  h1:136  batch:1  w1:240
+        fmap1 = self.fmap1  # [1,256,136,240]
         fmap2 = self.fmap2
         out_pyramid = []
         for i in range(self.num_levels):
-            dx = torch.zeros(1)
-            dy = torch.linspace(-r, r, 2*r+1)
-            delta = torch.stack(torch.meshgrid(dy, dx), axis=-1).to(coords.device)  # [9,1,2]
-            centroid_lvl = coords.reshape(batch, h1, w1, 1, 2).clone()  # [1,136,240,1,2]
+            """
+            下面注释为当i=0时
+            """
+            dx = torch.zeros(1)  # dx:tensor([0.])
+            dy = torch.linspace(-r, r, 2*r+1)  # dy:tensor([-4.,-3.,-2.,-1.,0.,1.,2.,3.,4.])
+            delta = torch.stack(torch.meshgrid(dy, dx), axis=-1).to(coords.device)  # delta是从[-4,0]到[4,0]  # [9,1,2]
+            centroid_lvl = coords.reshape(batch, h1, w1, 1, 2).clone()  # 从[0,0],[1,0]...[239,0]开始到[0,1],[1,1]...[239,1]再到[0,135],[1,135]...[239,135]  # [1,136,240,1,2]
             centroid_lvl[...,0] = centroid_lvl[...,0] / 2**i  # [1,136,240,1,2]
             coords_lvl = centroid_lvl + delta.view(-1, 2)  # [1,136,240,9,2]
-            corr = self.corr(fmap1, fmap2, coords_lvl)  # [1,136,240,9,2]
-            fmap2 = F.avg_pool2d(fmap2, [1, 2], stride=[1, 2])  # [1,256,136,120]
-            out_pyramid.append(corr)
-        out = torch.cat(out_pyramid, dim=-1)
+            corr = self.corr(fmap1, fmap2, coords_lvl)  # [1,136,240,9]
+            # """
+            # corr可视化
+            # """
+            # if i == 0:
+            #     import matplotlib.pyplot as plt
+            #     corr_numpy = corr.cpu().numpy()
+            #     for j in range(9):
+            #         plt.subplot(3, 3, j + 1)  # 创建一个3x3的子图网格，并定位到第i+1个图
+            #         plt.imshow(corr_numpy[0, :, :, j], cmap='jet')  # 画出第i个通道的图像
+            #         plt.title(f'Channel {j + 1}')  # 设置子图的标题
+            #         plt.axis('off')  # 隐藏坐标轴
+            #     plt.tight_layout()  # 自动调整子图参数，使之填充整个图像区域。
+            #     plt.show()
+            # # =====================================================
+            # 对fmap2进行下采样
+            fmap2 = F.avg_pool2d(fmap2, [1, 2], stride=[1, 2])  # 在循环中从[1,256,136,240] ==> [1,256,136,120] ==> [1,256,136,60] ==> [1,256,136,30]
+            out_pyramid.append(corr)  # out_pyramid:{list4},每个都是tensor[1,136,240,9]
+        out = torch.cat(out_pyramid, dim=-1)  # out:[1,136,240,36], 36是4*9
         return out.permute(0, 3, 1, 2).contiguous().float()
 
 
