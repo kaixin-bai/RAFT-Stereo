@@ -44,7 +44,7 @@ class MultiheadSelfAttention(nn.Module):
 
         # Scaled dot-product attention
         energy = torch.einsum("nqhij,nkhij->nqkij", [queries, keys])
-        attention = F.softmax(energy / (self.hidden_dim ** (1 / 2)), dim=2)
+        attention = F.softmax(energy / (self.head_dim ** (1 / 2)), dim=2)
 
         out = torch.einsum("nqkij,nkhij->nqhij", [attention, values]).view(N, C, H, W)
 
