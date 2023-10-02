@@ -13,6 +13,70 @@ class FlowHead(nn.Module):
     def forward(self, x):
         return self.conv2(self.relu(self.conv1(x)))
 
+
+class MultiheadSelfAttention(nn.Module):
+    def __init__(self, hidden_dim, num_heads):
+        super(MultiheadSelfAttention, self).__init__()
+        self.num_heads = num_heads
+        self.hidden_dim = hidden_dim
+        self.head_dim = hidden_dim // num_heads
+
+        assert (
+            self.head_dim * num_heads == hidden_dim
+        ), "Hidden dimension must be divisible by number of heads."
+
+        self.values = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+        self.keys = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+        self.queries = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+        self.fc_out = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+
+    def forward(self, x):
+        N, C, H, W = x.shape
+
+        values = self.values(x)
+        keys = self.keys(x)
+        queries = self.queries(x)
+
+        # Split the embeddings into self.num_heads different pieces
+        values = values.view(N, self.num_heads, self.head_dim, H, W)
+        keys = keys.view(N, self.num_heads, self.head_dim, H, W)
+        queries = queries.view(N, self.num_heads, self.head_dim, H, W)
+
+        # Scaled dot-product attention
+        energy = torch.einsum("nqhij,nkhij->nqkij", [queries, keys])
+        attention = F.softmax(energy / (self.hidden_dim ** (1 / 2)), dim=2)
+
+        out = torch.einsum("nqkij,nkhij->nqhij", [attention, values]).view(N, C, H, W)
+
+        # Pass through the fully connected layer
+        out = self.fc_out(out)
+        return out
+
+
+class ConvGRUWithAttention(nn.Module):  # 卷积门控循环神经网络
+    def __init__(self, hidden_dim, input_dim, kernel_size=3, num_heads=8):
+        super(ConvGRUWithAttention, self).__init__()
+
+        self.attention = MultiheadSelfAttention(hidden_dim, num_heads)
+
+        self.convz = nn.Conv2d(hidden_dim + input_dim, hidden_dim, kernel_size, padding=kernel_size // 2)
+        self.convr = nn.Conv2d(hidden_dim + input_dim, hidden_dim, kernel_size, padding=kernel_size // 2)
+        self.convq = nn.Conv2d(hidden_dim + input_dim, hidden_dim, kernel_size, padding=kernel_size // 2)
+
+    def forward(self, h, cz, cr, cq, *x_list):
+        x = torch.cat(x_list, dim=1)
+        hx = torch.cat([h, x], dim=1)
+
+        hx = self.attention(hx)
+
+        z = torch.sigmoid(self.convz(hx) + cz)
+        r = torch.sigmoid(self.convr(hx) + cr)
+        q = torch.tanh(self.convq(torch.cat([r * h, x], dim=1)) + cq)
+
+        h = (1 - z) * h + z * q
+        return h
+
+
 class ConvGRU(nn.Module):  # 卷积门控循环神经网络
     def __init__(self, hidden_dim, input_dim, kernel_size=3):
         super(ConvGRU, self).__init__()
@@ -113,9 +177,12 @@ class BasicMultiUpdateBlock(nn.Module):
         self.encoder = BasicMotionEncoder(args)
         encoder_output_dim = 128
 
-        self.gru08 = ConvGRU(hidden_dims[2], encoder_output_dim + hidden_dims[1] * (args.n_gru_layers > 1))
-        self.gru16 = ConvGRU(hidden_dims[1], hidden_dims[0] * (args.n_gru_layers == 3) + hidden_dims[2])
-        self.gru32 = ConvGRU(hidden_dims[0], hidden_dims[1])
+        # self.gru08 = ConvGRU(hidden_dims[2], encoder_output_dim + hidden_dims[1] * (args.n_gru_layers > 1))
+        # self.gru16 = ConvGRU(hidden_dims[1], hidden_dims[0] * (args.n_gru_layers == 3) + hidden_dims[2])
+        # self.gru32 = ConvGRU(hidden_dims[0], hidden_dims[1])
+        self.gru08 = ConvGRUWithAttention(hidden_dims[2], encoder_output_dim + hidden_dims[1] * (args.n_gru_layers > 1))
+        self.gru16 = ConvGRUWithAttention(hidden_dims[1], hidden_dims[0] * (args.n_gru_layers == 3) + hidden_dims[2])
+        self.gru32 = ConvGRUWithAttention(hidden_dims[0], hidden_dims[1])
         self.flow_head = FlowHead(hidden_dims[2], hidden_dim=256, output_dim=2)
         factor = 2**self.args.n_downsample
 
