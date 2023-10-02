@@ -13,22 +13,25 @@ class FlowHead(nn.Module):
     def forward(self, x):
         return self.conv2(self.relu(self.conv1(x)))
 
-class ConvGRU(nn.Module):
+class ConvGRU(nn.Module):  # 卷积门控循环神经网络
     def __init__(self, hidden_dim, input_dim, kernel_size=3):
         super(ConvGRU, self).__init__()
+        # 这个卷积层用于计算ConvGRU的更新门（z门）,将输入通道数为hidden_dim + input_dim的输入数据通过一个卷积核（kernel）进行卷积操作，输出通道数为hidden_dim，卷积核大小为kernel_size，并应用了填充（padding）以保持输入输出大小相同
         self.convz = nn.Conv2d(hidden_dim+input_dim, hidden_dim, kernel_size, padding=kernel_size//2)
+        # 计算ConvGRU的重置门（r门）
         self.convr = nn.Conv2d(hidden_dim+input_dim, hidden_dim, kernel_size, padding=kernel_size//2)
+        # 计算ConvGRU的当前状态（q值）
         self.convq = nn.Conv2d(hidden_dim+input_dim, hidden_dim, kernel_size, padding=kernel_size//2)
 
     def forward(self, h, cz, cr, cq, *x_list):
         x = torch.cat(x_list, dim=1)
         hx = torch.cat([h, x], dim=1)
 
-        z = torch.sigmoid(self.convz(hx) + cz)
-        r = torch.sigmoid(self.convr(hx) + cr)
-        q = torch.tanh(self.convq(torch.cat([r*h, x], dim=1)) + cq)
+        z = torch.sigmoid(self.convz(hx) + cz)  # 计算更新门z。它首先将hx通过卷积层self.convz传递，然后加上外部输入cz，最后通过Sigmoid函数进行激活，以产生更新门z
+        r = torch.sigmoid(self.convr(hx) + cr)  # 计算重置门r，类似于更新门z的计算，但使用了不同的卷积层self.convr和外部输入cr
+        q = torch.tanh(self.convq(torch.cat([r*h, x], dim=1)) + cq) # 计算当前状态q。它首先将重置门r与当前隐藏状态h相乘，然后将其与输入张量x在通道维度上拼接，然后通过卷积层self.convq传递，并加上外部输入cq。最后，通过双曲正切函数（tanh）进行激活，以产生当前状态q
 
-        h = (1-z) * h + z * q
+        h = (1-z) * h + z * q # 计算新的隐藏状态h，通过使用更新门z来融合当前状态q和旧的隐藏状态h，以得到新的隐藏状态
         return h
 
 class SepConvGRU(nn.Module):
@@ -85,9 +88,18 @@ class BasicMotionEncoder(nn.Module):
         return torch.cat([out, flow], dim=1)
 
 def pool2x(x):
+    """
+    kernel size:3; stride:2; padding:1
+    高度（Height）：(68 + 2*1 - 3) / 2 + 1 = 34
+    宽度（Width）：(120 + 2*1 - 3) / 2 + 1 = 60
+    [1,128,68,120] ==> [1, 128, 34, 60]
+    """
     return F.avg_pool2d(x, 3, stride=2, padding=1)
 
 def pool4x(x):
+    """
+
+    """
     return F.avg_pool2d(x, 5, stride=4, padding=1)
 
 def interp(x, dest):
